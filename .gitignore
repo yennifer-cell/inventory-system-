@@ -1,0 +1,23 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+venv/
+.idea/
+.vscode/
+.DS_Store
+*.egg-info/
+.python-version
+.env
+
+# IDE files
+*.swp
+*.swo
+
+# pytest cache
+.pytest_cache/
+
+# Local Flask environment
+instance/
