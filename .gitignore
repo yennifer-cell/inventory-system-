@@ -8,6 +8,7 @@ venv/
 .idea/
 .vscode/
 .DS_Store
+.venv/
 *.egg-info/
 .python-version
 .env
