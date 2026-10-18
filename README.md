@@ -1,80 +1,192 @@
-# Inventory Management System
+# Inventory Management API (Flask)
 
-A Flask-based REST API and CLI tool for managing retail inventory with external product enrichment from OpenFoodFacts.
+A Flask-based REST API for inventory management with OpenFoodFacts API integration and a CLI client.
 
 ## Features
 
-- RESTful inventory CRUD endpoints in Flask
-- External product searches by barcode or name using OpenFoodFacts
-- CLI interface to add, list, update, delete, and find products
-- In-memory inventory storage for quick prototyping
-- Pytest suite covering API endpoints, CLI commands, and external API integration
+- Full CRUD operations for inventory items
+- External API integration with OpenFoodFacts (search by barcode or product name)
+- CLI client for easy interaction with the API
+- Comprehensive test suite with pytest
+
+## Project Structure
+
+```
+inventory-system-/
+├── app.py              # Flask REST API
+├── cli.py              # Command-line interface client
+├── external_api.py     # OpenFoodFacts API integration
+├── tests/
+│   ├── test_app.py          # API endpoint tests
+│   ├── test_cli.py          # CLI tests
+│   └── test_external_api.py # External API tests
+├── requirements.txt
+└── README.md
+```
 
 ## Setup
 
+1. Clone the repository:
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+git clone https://github.com/yennifer-cell/inventory-system-.git
+cd inventory-system-
+```
+
+2. Create and activate a virtual environment:
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+3. Install dependencies:
+```bash
 pip install -r requirements.txt
 ```
 
-## Run the API
+## Running the API
 
+Start the Flask server:
 ```bash
 python app.py
 ```
 
-The API will start on `http://127.0.0.1:5000`.
+The API runs on `http://127.0.0.1:8000` by default.
 
 ## API Endpoints
 
-- `GET /inventory` — list all inventory items
-- `GET /inventory/<id>` — get a single item by ID
-- `POST /inventory` — add a new item
-- `PATCH /inventory/<id>` — update a specific item
-- `DELETE /inventory/<id>` — delete a specific item
-- `GET /inventory/find?barcode=<barcode>` — fetch product details from OpenFoodFacts
-- `GET /inventory/find?name=<name>` — search product details by name
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/` | Health check |
+| GET | `/inventory` | List all inventory items |
+| GET | `/inventory/<id>` | Get a single item by ID |
+| POST | `/inventory` | Create a new item |
+| PATCH | `/inventory/<id>` | Update an existing item |
+| DELETE | `/inventory/<id>` | Delete an item |
+| GET | `/external/barcode/<barcode>` | Lookup product by barcode (OpenFoodFacts) |
+| GET | `/external/search?name=<name>` | Search product by name (OpenFoodFacts) |
+| POST | `/inventory/from-barcode/<barcode>` | Create item from external product data |
 
-### Example `POST /inventory`
+## Sample API Requests
 
-```json
-{
-  "name": "Organic Almond Milk",
-  "barcode": "0787678161065",
-  "quantity": 10,
-  "price": 3.99
-}
+### Create an item
+```bash
+curl -X POST http://127.0.0.1:8000/inventory \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Organic Almond Milk", "brand": "Silk", "quantity": 12, "price": 3.99}'
+```
+
+### Update multiple fields
+```bash
+curl -X PATCH http://127.0.0.1:8000/inventory/1 \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Updated Name", "quantity": 20, "price": 4.99}'
+```
+
+### Lookup product by barcode
+```bash
+curl http://127.0.0.1:8000/external/barcode/737628064502
+```
+
+### Search product by name
+```bash
+curl "http://127.0.0.1:8000/external/search?name=almond%20milk"
 ```
 
 ## CLI Usage
 
-Start the API server first, then run operations from the CLI.
+In a new terminal (with the venv active and API running):
 
 ```bash
-python cli.py list
-python cli.py get 1
-python cli.py add "Fresh Oats" --barcode 1234567890123 --quantity 15 --price 2.99
-python cli.py update 1 --price 4.25 --quantity 18
-python cli.py delete 2
-python cli.py find --barcode 0787678161065
-python cli.py find --name "Almond Milk"
+python cli.py
 ```
 
-To start the API from the CLI directly:
+### CLI Menu Options
 
-```bash
-python cli.py runserver
+```
+Inventory CLI
+1. List inventory       - View all inventory items
+2. View one item        - Get details of a specific item by ID
+3. Add item             - Create a new inventory item
+4. Update item          - Update one or more fields of an existing item
+5. Delete item          - Remove an item from inventory
+6. Find external product by barcode - Search OpenFoodFacts by barcode
+7. Find external product by name    - Search OpenFoodFacts by product name
+8. Add product from barcode         - Create inventory item from external data
+9. Exit                 - Close the CLI
 ```
 
-## Testing
+### CLI Examples
 
+**List all inventory:**
+```
+Choose an option: 1
+200 [{'id': 1, 'name': 'Organic Almond Milk', 'brand': 'Silk', ...}]
+```
+
+**Add a new item:**
+```
+Choose an option: 3
+Name: Orange Juice
+Brand: Tropicana
+Quantity: 24
+Price: 5.99
+Barcode (optional): 048500202661
+201 {'id': 3, 'name': 'Orange Juice', 'brand': 'Tropicana', ...}
+```
+
+**Update multiple fields:**
+```
+Choose an option: 4
+Item id: 1
+Enter new values (leave blank to skip a field):
+Name: Premium Almond Milk
+Brand:
+Quantity: 15
+Price: 4.49
+Barcode:
+Ingredients:
+200 {'id': 1, 'name': 'Premium Almond Milk', 'quantity': 15, 'price': 4.49, ...}
+```
+
+**Search by product name:**
+```
+Choose an option: 7
+Product name to search: nutella
+200 {'name': 'Nutella', 'brand': 'Ferrero', 'ingredients': '...', 'barcode': '...'}
+```
+
+**Add product from barcode:**
+```
+Choose an option: 8
+Barcode: 737628064502
+Quantity to add: 10
+201 {'id': 4, 'name': 'Thai peanut noodle kit...', 'quantity': 10, ...}
+```
+
+## Running Tests
+
+Run all tests:
 ```bash
 pytest
 ```
 
-## Notes
+Run with verbose output:
+```bash
+pytest -v
+```
 
-- Inventory is stored in memory for this lab-style project.
-- The API enriches items with OpenFoodFacts metadata when a valid barcode is provided.
-- Use the CLI commands after starting `app.py` or the `runserver` command.
+Run specific test file:
+```bash
+pytest tests/test_app.py -v
+```
+
+## Technologies Used
+
+- Python 3.12
+- Flask - Web framework
+- Requests - HTTP library for external API calls
+- Pytest - Testing framework
+
+## License
+
+This project is for educational purposes as part of the Moringa School Software Engineering program.

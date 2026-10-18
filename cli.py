@@ -1,156 +1,140 @@
-import argparse
-import json
+
+import os
+
 import requests
-import sys
 
-DEFAULT_BASE_URL = "http://127.0.0.1:5000"
+BASE_URL = os.getenv("INVENTORY_API_URL", "http://127.0.0.1:5000")
 
 
-def request_api(method, path, base_url, json_payload=None, params=None):
-    url = f"{base_url}{path}"
-    response = requests.request(method, url=url, json=json_payload, params=params, timeout=5)
+def request_json(method, path, payload=None):
+    url = f"{BASE_URL}{path}"
+    response = requests.request(method, url, json=payload, timeout=10)
+
+    if response.status_code == 204:
+        return response.status_code, None
+
     try:
-        result = response.json()
+        return response.status_code, response.json()
     except ValueError:
-        response.raise_for_status()
-    if not response.ok:
-        raise requests.HTTPError(f"{response.status_code} {response.text}")
-    return result
+        return response.status_code, {"raw": response.text}
 
 
-def print_item(item):
-    print(json.dumps(item, indent=2, sort_keys=True))
+def print_menu():
+    print("\nInventory CLI")
+    print("1. List inventory")
+    print("2. View one item")
+    print("3. Add item")
+    print("4. Update item")
+    print("5. Delete item")
+    print("6. Find external product by barcode")
+    print("7. Find external product by name")
+    print("8. Add product from barcode")
+    print("9. Exit")
 
 
-def list_items(args):
-    items = request_api("GET", "/inventory", args.base_url)
-    for item in items:
-        print_item(item)
+def run_cli():
+    while True:
+        print_menu()
+        choice = input("Choose an option: ").strip()
 
+        try:
+            if choice == "1":
+                status, data = request_json("GET", "/inventory")
+                print(status, data)
 
-def get_item(args):
-    item = request_api("GET", f"/inventory/{args.id}", args.base_url)
-    print_item(item)
+            elif choice == "2":
+                item_id = int(input("Item id: ").strip())
+                status, data = request_json("GET", f"/inventory/{item_id}")
+                print(status, data)
 
+            elif choice == "3":
+                name = input("Name: ").strip()
+                brand = input("Brand: ").strip()
+                quantity = int(input("Quantity: ").strip())
+                price = float(input("Price: ").strip())
+                barcode = input("Barcode (optional): ").strip()
+                payload = {
+                    "name": name,
+                    "brand": brand,
+                    "quantity": quantity,
+                    "price": price,
+                    "barcode": barcode,
+                }
+                status, data = request_json("POST", "/inventory", payload)
+                print(status, data)
 
-def add_item(args):
-    payload = {
-        "name": args.name,
-        "barcode": args.barcode,
-        "quantity": args.quantity,
-        "price": args.price,
-    }
-    item = request_api("POST", "/inventory", args.base_url, json_payload=payload)
-    print("Created item:")
-    print_item(item)
+            elif choice == "4":
+                item_id = int(input("Item id: ").strip())
+                print("Enter new values (leave blank to skip a field):")
 
+                payload = {}
 
-def update_item(args):
-    payload = {}
-    if args.name:
-        payload["name"] = args.name
-    if args.barcode:
-        payload["barcode"] = args.barcode
-    if args.quantity is not None:
-        payload["quantity"] = args.quantity
-    if args.price is not None:
-        payload["price"] = args.price
-    if not payload:
-        print("No update fields provided.")
-        return
-    item = request_api("PATCH", f"/inventory/{args.id}", args.base_url, json_payload=payload)
-    print("Updated item:")
-    print_item(item)
+                name = input("Name: ").strip()
+                if name:
+                    payload["name"] = name
 
+                brand = input("Brand: ").strip()
+                if brand:
+                    payload["brand"] = brand
 
-def delete_item(args):
-    result = request_api("DELETE", f"/inventory/{args.id}", args.base_url)
-    print(result.get("message", "Deleted."))
+                quantity_str = input("Quantity: ").strip()
+                if quantity_str:
+                    payload["quantity"] = int(quantity_str)
 
+                price_str = input("Price: ").strip()
+                if price_str:
+                    payload["price"] = float(price_str)
 
-def find_item(args):
-    params = {}
-    if args.barcode:
-        params["barcode"] = args.barcode
-    elif args.name:
-        params["name"] = args.name
-    else:
-        print("Provide either --barcode or --name to find an item.")
-        return
+                barcode = input("Barcode: ").strip()
+                if barcode:
+                    payload["barcode"] = barcode
 
-    item = request_api("GET", "/inventory/find", args.base_url, params=params)
-    print("External product result:")
-    print_item(item)
+                ingredients = input("Ingredients: ").strip()
+                if ingredients:
+                    payload["ingredients"] = ingredients
 
+                if not payload:
+                    print("No fields to update.")
+                else:
+                    status, data = request_json("PATCH", f"/inventory/{item_id}", payload)
+                    print(status, data)
 
-def run_server(args):
-    from app import app
+            elif choice == "5":
+                item_id = int(input("Item id: ").strip())
+                status, _ = request_json("DELETE", f"/inventory/{item_id}")
+                print(status)
 
-    app.run(debug=True)
+            elif choice == "6":
+                barcode = input("Barcode: ").strip()
+                status, data = request_json("GET", f"/external/barcode/{barcode}")
+                print(status, data)
 
+            elif choice == "7":
+                name = input("Product name to search: ").strip()
+                if not name:
+                    print("Name cannot be empty.")
+                else:
+                    status, data = request_json("GET", f"/external/search?name={name}")
+                    print(status, data)
 
-def build_parser():
-    parser = argparse.ArgumentParser(description="Inventory Management CLI")
-    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="API base URL")
+            elif choice == "8":
+                barcode = input("Barcode: ").strip()
+                quantity = int(input("Quantity to add: ").strip())
+                status, data = request_json("POST", f"/inventory/from-barcode/{barcode}", {"quantity": quantity})
+                print(status, data)
 
-    subparsers = parser.add_subparsers(dest="command", required=True)
+            elif choice == "9":
+                print("Goodbye")
+                break
 
-    subparsers.add_parser("list", help="List all inventory items")
+            else:
+                print("Invalid choice. Try again.")
 
-    get_parser = subparsers.add_parser("get", help="Fetch a single inventory item")
-    get_parser.add_argument("id", type=int, help="Item ID")
-
-    add_parser = subparsers.add_parser("add", help="Add a new inventory item")
-    add_parser.add_argument("name", help="Item name")
-    add_parser.add_argument("--barcode", default="", help="Product barcode")
-    add_parser.add_argument("--quantity", type=int, default=0, help="Stock quantity")
-    add_parser.add_argument("--price", type=float, default=0.0, help="Unit price")
-
-    update_parser = subparsers.add_parser("update", help="Update an existing inventory item")
-    update_parser.add_argument("id", type=int, help="Item ID")
-    update_parser.add_argument("--name", help="New item name")
-    update_parser.add_argument("--barcode", help="New barcode")
-    update_parser.add_argument("--quantity", type=int, help="New stock quantity")
-    update_parser.add_argument("--price", type=float, help="New price")
-
-    delete_parser = subparsers.add_parser("delete", help="Delete an inventory item")
-    delete_parser.add_argument("id", type=int, help="Item ID")
-
-    find_parser = subparsers.add_parser("find", help="Find product details from external API")
-    find_group = find_parser.add_mutually_exclusive_group(required=True)
-    find_group.add_argument("--barcode", help="Product barcode")
-    find_group.add_argument("--name", help="Product name")
-
-    subparsers.add_parser("runserver", help="Start the Flask API server")
-    return parser
-
-
-def main(argv=None):
-    args = build_parser().parse_args(argv)
-    try:
-        if args.command == "list":
-            list_items(args)
-        elif args.command == "get":
-            get_item(args)
-        elif args.command == "add":
-            add_item(args)
-        elif args.command == "update":
-            update_item(args)
-        elif args.command == "delete":
-            delete_item(args)
-        elif args.command == "find":
-            find_item(args)
-        elif args.command == "runserver":
-            run_server(args)
-        else:
-            raise ValueError("Unknown command")
-    except requests.HTTPError as exc:
-        print(f"Request failed: {exc}")
-        sys.exit(1)
-    except requests.RequestException as exc:
-        print(f"Network error: {exc}")
-        sys.exit(1)
+        except ValueError:
+            print("Invalid input type. Try again.")
+        except requests.RequestException:
+            print("Request failed. Is the Flask API running?")
 
 
 if __name__ == "__main__":
-    main()
+    run_cli()
